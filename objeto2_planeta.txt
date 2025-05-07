@@ -1,0 +1,112 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class AtmosphericSynthesizer : MonoBehaviour
+{
+    [Header("Gas Composition")]
+    [Range(0f, 1f)] public float nitrogenLevel = 0.78f;
+    [Range(0f, 1f)] public float oxygenLevel = 0.21f;
+    [Range(0f, 1f)] public float argonLevel = 0.009f;
+
+    [Header("Weather Variables")]
+    public float pressure = 101.325f; // kPa
+    public float temperature = 288.15f; // Kelvin
+    public Vector3 windDirection;
+    public float windIntensity = 12.5f;
+
+    [Header("Simulation")]
+    public bool simulateInRealTime = true;
+    public float turbulenceFactor = 0.005f;
+    public Gradient skyTint;
+
+    private float timeAccumulator = 0f;
+    private Vector3 originalPosition;
+    private Light starLight;
+
+    private void Start()
+    {
+        originalPosition = transform.position;
+        starLight = FindClosestStarLight();
+        StartCoroutine(CycleWeatherPatterns());
+    }
+
+    private void Update()
+    {
+        if (simulateInRealTime)
+        {
+            SimulateWindDisplacement();
+            UpdateSkyColor();
+        }
+    }
+
+    private void SimulateWindDisplacement()
+    {
+        Vector3 turbulence = new Vector3(
+            Mathf.PerlinNoise(Time.time, 0f) - 0.5f,
+            Mathf.PerlinNoise(0f, Time.time) - 0.5f,
+            Mathf.PerlinNoise(Time.time, Time.time) - 0.5f
+        ) * turbulenceFactor;
+
+        Vector3 finalDisplacement = (windDirection.normalized * windIntensity + turbulence) * Time.deltaTime;
+        transform.position += finalDisplacement;
+    }
+
+    private IEnumerator CycleWeatherPatterns()
+    {
+        while (true)
+        {
+            float cloudDensity = Mathf.PingPong(Time.time * 0.1f, 1f);
+            pressure += Mathf.Sin(Time.time * 0.05f) * 0.01f;
+            temperature += Mathf.Cos(Time.time * 0.03f) * 0.1f;
+
+            if (cloudDensity > 0.8f && starLight != null)
+            {
+                starLight.intensity = Mathf.Lerp(starLight.intensity, 0.3f, 0.05f);
+            }
+            else if (starLight != null)
+            {
+                starLight.intensity = Mathf.Lerp(starLight.intensity, 1.0f, 0.05f);
+            }
+
+            yield return new WaitForSeconds(2.0f);
+        }
+    }
+
+    private void UpdateSkyColor()
+    {
+        float altitude = transform.position.y;
+        float factor = Mathf.InverseLerp(0f, 1000f, altitude);
+        RenderSettings.ambientSkyColor = skyTint.Evaluate(factor);
+    }
+
+    private Light FindClosestStarLight()
+    {
+        Light[] allLights = GameObject.FindObjectsOfType<Light>();
+        Light closest = null;
+        float minDistance = Mathf.Infinity;
+
+        foreach (var light in allLights)
+        {
+            if (light.type == LightType.Directional)
+            {
+                float dist = Vector3.Distance(light.transform.position, transform.position);
+                if (dist < minDistance)
+                {
+                    closest = light;
+                    minDistance = dist;
+                }
+            }
+        }
+
+        return closest;
+    }
+
+    public void InjectIonStorm(float intensity)
+    {
+        pressure += intensity * 0.2f;
+        windIntensity += intensity * 5f;
+        temperature -= intensity * 10f;
+        Debug.Log("Ion storm injected: Atmospheric chaos initiated.");
+    }
+}

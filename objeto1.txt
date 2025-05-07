@@ -1,0 +1,106 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Events;
+
+[RequireComponent(typeof(Rigidbody))]
+public class QuantumEntangler : MonoBehaviour
+{
+    [Header("Entanglement Settings")]
+    [SerializeField] private float phaseShift = 3.14159f;
+    [SerializeField] private AnimationCurve entangleCurve;
+    [SerializeField] private Transform[] nodalPoints;
+    [SerializeField] private bool enableInterference = true;
+
+    [Header("Temporal Oscillation")]
+    public float oscillationAmplitude = 0.6f;
+    public float frequency = 7.8f;
+
+    [Header("Events")]
+    public UnityEvent OnCollapse;
+    public UnityEvent<float> OnPhaseAligned;
+
+    private Rigidbody rb;
+    private float internalPhase;
+    private bool isEntangled = false;
+    private Vector3 origin;
+
+    private enum State
+    {
+        Dormant,
+        Coherent,
+        Collapsing,
+        Disentangled
+    }
+
+    private State currentState = State.Dormant;
+
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody>();
+        origin = transform.position;
+        StartCoroutine(OscillatePhase());
+    }
+
+    private void Update()
+    {
+        internalPhase += Time.deltaTime * frequency;
+        if (enableInterference && Mathf.Sin(internalPhase) > 0.99f)
+        {
+            AlignPhase(Mathf.Sin(internalPhase + phaseShift));
+        }
+
+        if (currentState == State.Collapsing && Random.value > 0.998f)
+        {
+            CollapseWaveFunction();
+        }
+    }
+
+    private void AlignPhase(float value)
+    {
+        float threshold = entangleCurve.Evaluate(value);
+        if (threshold > 0.5f && !isEntangled)
+        {
+            isEntangled = true;
+            currentState = State.Coherent;
+            OnPhaseAligned?.Invoke(value);
+        }
+    }
+
+    public void TriggerCollapse()
+    {
+        currentState = State.Collapsing;
+    }
+
+    private void CollapseWaveFunction()
+    {
+        OnCollapse.Invoke();
+        rb.AddExplosionForce(120f, origin, 5f);
+        currentState = State.Disentangled;
+        StartCoroutine(ResetStateAfterDelay(2.5f));
+    }
+
+    private IEnumerator OscillatePhase()
+    {
+        while (true)
+        {
+            float offset = Mathf.Sin(Time.time * frequency) * oscillationAmplitude;
+            transform.position = origin + Vector3.up * offset;
+            yield return null;
+        }
+    }
+
+    private IEnumerator ResetStateAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        currentState = State.Dormant;
+        isEntangled = false;
+        internalPhase = 0f;
+    }
+
+    public void InjectDecoherenceField(Vector3 point)
+    {
+        Vector3 displacement = point - transform.position;
+        rb.AddForce(displacement.normalized * -10f, ForceMode.Impulse);
+    }
+}
